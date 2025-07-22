@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>終極版 v20 - 讀取動畫版</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --card-bg: #2b2b2b;
+            --body-bg: #1a1a1a;
+            --text-color: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-color: #007BFF;
+            --accent-hover: #0056b3;
+            --green-color: #4CAF50;
+            --loss-color: #f44336;
+            --assets-color: #125c1c; 
+            --border-color: #444;
+        }
+        body {
+            background-color: var(--body-bg);
+            color: var(--text-color);
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        /* --- 讀取動畫 --- */
+        #loader-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--body-bg);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.5s ease-out;
+        }
+        .spinner {
+            border: 8px solid #444;
+            border-top: 8px solid var(--accent-color);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1.5s linear infinite;
+        }
+        #loader-overlay p {
+            color: var(--text-muted);
+            margin-top: 20px;
+            font-size: 1.2rem;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #loader-overlay.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto auto;
+            gap: 20px;
+            max-width: 1200px;
+            margin: auto;
+            grid-template-areas:
+                "header header"
+                "fi-goal fi-goal"
+                "chart controls";
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .header-card { grid-area: header; text-align: center; }
+        .fi-goal-card { grid-area: fi-goal; }
+        .chart-card { grid-area: chart; display: flex; flex-direction: column;}
+        .controls-card { grid-area: controls; }
+
+        h1, h2 {
+            margin-top: 0;
+            color: #ffffff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        h1 { font-size: 2rem; }
+        h2 { border-bottom: 1px solid var(--border-color); }
+        .header-card h1 { border: none; margin-bottom: 5px;}
+        .header-card p { margin: 0; color: var(--text-muted); }
+        
+        .kpi-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .kpi-item h3 {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin: 0 0 10px 0;
+            font-weight: normal;
+        }
+        .kpi-item .value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--green-color);
+            transition: color 0.3s;
+        }
+        
+        .fi-goal-card .fi-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            align-items: center;
+            gap: 20px;
+        }
+        .fi-goal-card select {
+            padding: 10px;
+            background-color: #333;
+            border: 1px solid #555;
+            color: var(--text-color);
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+        .progress-container {
+            width: 100%;
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 1.1rem;
+            font-weight: bold;
+        }
+        .progress-bar-bg {
+            background-color: #444;
+            height: 15px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            background-color: var(--accent-color);
+            height: 100%;
+            width: 0%;
+            border-radius: 10px;
+            transition: width 0.5s ease-in-out;
+        }
+        .fi-years { text-align: right; color: var(--text-muted); margin-top: 8px; }
+
+        .control-panel .input-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .control-panel .input-section { margin-bottom: 20px; }
+        .control-panel h3 { font-size: 1.1rem; color: #fff; margin-bottom: 10px; border-bottom: 1px dashed #555; padding-bottom: 5px;}
+        .control-panel label { display: block; margin-bottom: 5px; color: var(--text-muted); font-size: 0.9rem; }
+        .control-panel input {
+            width: 100%;
+            padding: 10px;
+            background-color: #333;
+            border: 1px solid #555;
+            color: #fff;
+            border-radius: 6px;
+            box-sizing: border-box;
+            appearance: textfield;
+        }
+        .control-panel input::-webkit-outer-spin-button,
+        .control-panel input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        .chart-container { position: relative; height: 100%; width: 100%;}
+
+        @media (max-width: 900px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "header"
+                    "fi-goal"
+                    "controls"
+                    "chart";
+            }
+            .chart-card {
+                min-height: 400px;
+            }
+            .fi-goal-card .fi-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loader-overlay">
+    <div class="spinner"></div>
+    <p>儀表板建構中，正在從雲端同步數據...</p>
+</div>
+
+<div class="dashboard-grid">
+    <header class="card header-card">
+        <h1>您的個人化投資儀表板</h1>
+        <p>一個為您量身打造的動態績效與風險分析中心</p>
+        <div class="kpi-container">
+            <div class="kpi-item">
+                <h3>當前總資產 (USD)</h3>
+                <div class="value" id="kpi-total-assets">$0.00</div>
+            </div>
+            <div class="kpi-item">
+                <h3>總報酬率 (%)</h3>
+                <div class="value" id="kpi-ytd-return">+0.00%</div>
+            </div>
+        </div>
+    </header>
+
+    <div class="card fi-goal-card">
+        <h2>財富自由目標</h2>
+        <div class="fi-content">
+            <div>
+                <label for="fi-level-select">選擇您的目標</label>
+                <select id="fi-level-select">
+                    <option value="0" data-name="基礎自由">基礎自由</option>
+                    <option value="0" data-name="舒適自由">舒適自由</option>
+                    <option value="0" data-name="富裕自由">富裕自由</option>
+                </select>
+            </div>
+            <div class="progress-container">
+                <div class="progress-text">
+                    <span id="fi-progress-text">$0 / $0</span>
+                    <span id="fi-progress-percent">(0.0%)</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar" id="fi-progress-bar"></div>
+                </div>
+                <div class="fi-years" id="fi-years-text">請先輸入數據</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="card chart-card">
+        <h2>長期績效追蹤</h2>
+        <div class="chart-container">
+            <canvas id="performanceChart"></canvas>
+        </div>
+    </div>
+
+    <div class="card controls-card control-panel">
+        <h2>數據中心</h2>
+        <div class="input-section">
+            <h3>績效計算 (報酬率 = 報酬 / 成本)</h3>
+            <div class="input-group">
+                <div>
+                    <label for="currentAssets">我的當前總資產 (USD)</label>
+                    <input type="number" id="currentAssets" placeholder="125000">
+                </div>
+                 <div>
+                    <label for="totalProfit">總報酬 (USD)</label>
+                    <input type="number" id="totalProfit" placeholder="15000">
+                </div>
+                <div>
+                    <label for="totalCost">總成本 (USD)</label>
+                    <input type="number" id="totalCost" placeholder="110000">
+                </div>
+            </div>
+        </div>
+        <div class="input-section">
+            <h3>財富自由規劃 (4%法則)</h3>
+             <div class="input-group">
+                <div>
+                    <label for="fi-basic-expenses">基礎自由年支出 (USD)</label>
+                    <input type="number" id="fi-basic-expenses" placeholder="18750">
+                </div>
+                 <div>
+                    <label for="fi-comfortable-expenses">舒適自由年支出 (USD)</label>
+                    <input type="number" id="fi-comfortable-expenses" placeholder="31250">
+                </div>
+                 <div>
+                    <label for="fi-affluent-expenses">富裕自由年支出 (USD)</label>
+                    <input type="number" id="fi-affluent-expenses" placeholder="47100">
+                </div>
+                <div>
+                    <label for="annual-investment">預計每年投入 (USD)</label>
+                    <input type="number" id="annual-investment" placeholder="12000">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // API 網址，從 Google Apps Script 獲取大盤歷史資料
+    const API_URL = 'https://script.google.com/macros/s/AKfycbxO6pL5XGVPK9gOdLgjR9cGIuN1pD-Ah0duGpZLfj53ZQd11miXdteFYQl0S3Trsg4sYw/exec';
+
+    // 將所有重要的 DOM 元素集中管理
+    const elements = {
+        loader: document.getElementById('loader-overlay'), // <-- 新增讀取畫面的參照
+        inputs: {
+            currentAssets: document.getElementById('currentAssets'),
+            totalProfit: document.getElementById('totalProfit'),
+            totalCost: document.getElementById('totalCost'),
+            fiBasic: document.getElementById('fi-basic-expenses'),
+            fiComfortable: document.getElementById('fi-comfortable-expenses'),
+            fiAffluent: document.getElementById('fi-affluent-expenses'),
+            annualInvestment: document.getElementById('annual-investment')
+        },
+        kpis: {
+            totalAssets: document.getElementById('kpi-total-assets'),
+            ytdReturn: document.getElementById('kpi-ytd-return')
+        },
+        fi: {
+            levelSelect: document.getElementById('fi-level-select'),
+            progressText: document.getElementById('fi-progress-text'),
+            progressPercent: document.getElementById('fi-progress-percent'),
+            progressBar: document.getElementById('fi-progress-bar'),
+            yearsText: document.getElementById('fi-years-text')
+        },
+        chartCtx: document.getElementById('performanceChart').getContext('2d')
+    };
+
+    let performanceChart;
+    let marketData = null; // 用來儲存從 API 獲取的大盤歷史資料
+
+    // --- 資料存取 ---
+    function saveData() {
+        const dataToSave = {};
+        for (const key in elements.inputs) {
+            dataToSave[key] = elements.inputs[key].value;
+        }
+        localStorage.setItem('investmentDashboardData_v20', JSON.stringify(dataToSave));
+    }
+
+    function loadData() {
+        const savedData = localStorage.getItem('investmentDashboardData_v20');
+        if (savedData) {
+            const parsedData = JSON.parse(savedData);
+            for (const key in parsedData) {
+                if (elements.inputs[key]) {
+                    elements.inputs[key].value = parsedData[key];
+                }
+            }
+        }
+    }
+
+    // --- 圖表初始化 ---
+    function initializeChart() {
+        performanceChart = new Chart(elements.chartCtx, {
+             data: {
+                labels: [],
+                datasets: [
+                    { type: 'bar', label: '總資產', data: [], backgroundColor: '#bde0ff', yAxisID: 'y_assets', order: 2 },
+                    { type: 'line', label: '我的績效 (%)', data: [], borderColor: '#36A2EB', backgroundColor: '#36A2EB', tension: 0.1, yAxisID: 'y_returns', order: 1 },
+                    { type: 'line', label: 'QQQ (%)', data: [], borderColor: '#FF6384', backgroundColor: '#FF6384', tension: 0.1, yAxisID: 'y_returns', order: 1 },
+                    { type: 'line', label: 'VOO (%)', data: [], borderColor: '#4bc0c0', backgroundColor: '#4bc0c0', tension: 0.1, yAxisID: 'y_returns', order: 1 },
+                    { type: 'line', label: '0050 (%)', data: [], borderColor: '#9966FF', backgroundColor: '#9966FF', tension: 0.1, yAxisID: 'y_returns', order: 1 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { color: 'white' } },
+                    tooltip: {
+                        mode: 'index', intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (context.dataset.type === 'bar') {
+                                    return `${label}: ${context.parsed.y.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}`;
+                                }
+                                return `${label}: ${context.parsed.y.toFixed(2)}%`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: { ticks: { color: 'white' }, grid: { display: false } },
+                    y_assets: { type: 'linear', display: true, position: 'left', title: { display: true, text: '總資產 (USD)', color: 'white'}, ticks: { color: '#e0e0e0' }, grid: { color: '#444' } },
+                    y_returns: { type: 'linear', display: true, position: 'right', title: { display: true, text: '報酬率 (%)', color: 'white' }, ticks: { color: '#e0e0e0', callback: (v) => v + '%' }, grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // --- 核心計算與更新函式 ---
+    function calculateNPER(rate, pmt, pv, fv) { if (rate <= 0 || pmt === 0) return -1; const nper = Math.log((fv * rate - pmt) / (pv * rate - pmt)) / Math.log(1 + rate); return nper > 0 ? nper : -1; }
+
+    function updateUiFromInputs() {
+        const currentAssets = parseFloat(elements.inputs.currentAssets.value) || 0;
+        const totalProfit = parseFloat(elements.inputs.totalProfit.value) || 0;
+        const totalCost = parseFloat(elements.inputs.totalCost.value) || 0;
+        const annualInvestment = parseFloat(elements.inputs.annualInvestment.value) || 0;
+
+        let myPerformance = 0;
+        if (totalCost > 0) {
+            myPerformance = (totalProfit / totalCost) * 100;
+        }
+        elements.kpis.totalAssets.textContent = `$${currentAssets.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        elements.kpis.ytdReturn.textContent = `${myPerformance.toFixed(2)}%`;
+        elements.kpis.ytdReturn.style.color = myPerformance >= 0 ? 'var(--green-color)' : 'var(--loss-color)';
+
+        const fiTargets = { 
+            basic: (parseFloat(elements.inputs.fiBasic.value) || 0) * 25, 
+            comfortable: (parseFloat(elements.inputs.fiComfortable.value) || 0) * 25, 
+            affluent: (parseFloat(elements.inputs.fiAffluent.value) || 0) * 25 
+        };
+        elements.fi.levelSelect.options[0].value = fiTargets.basic;
+        elements.fi.levelSelect.options[0].textContent = `基礎自由 ($${fiTargets.basic.toLocaleString()})`;
+        elements.fi.levelSelect.options[1].value = fiTargets.comfortable;
+        elements.fi.levelSelect.options[1].textContent = `舒適自由 ($${fiTargets.comfortable.toLocaleString()})`;
+        elements.fi.levelSelect.options[2].value = fiTargets.affluent;
+        elements.fi.levelSelect.options[2].textContent = `富裕自由 ($${fiTargets.affluent.toLocaleString()})`;
+        
+        const selectedFiTarget = parseFloat(elements.fi.levelSelect.value);
+        if (selectedFiTarget > 0) {
+            const progress = Math.min((currentAssets / selectedFiTarget) * 100, 100);
+            elements.fi.progressText.textContent = `$${currentAssets.toLocaleString('en-US', {maximumFractionDigits: 0})} / $${selectedFiTarget.toLocaleString('en-US', {maximumFractionDigits: 0})}`;
+            elements.fi.progressPercent.textContent = `(${progress.toFixed(1)}%)`;
+            elements.fi.progressBar.style.width = `${progress}%`;
+            if (currentAssets >= selectedFiTarget) {
+                elements.fi.yearsText.textContent = '恭喜！您已達成此目標！';
+            } else if (myPerformance > 0 && annualInvestment > 0) {
+                const years = calculateNPER(myPerformance/100, -annualInvestment, -currentAssets, selectedFiTarget);
+                if (years > 0 && years < 100) {
+                    elements.fi.yearsText.textContent = `預計約 ${years.toFixed(1)} 年可達成目標`;
+                } else {
+                    elements.fi.yearsText.textContent = '目標較遠，請調整投入或預期';
+                }
+            } else {
+                elements.fi.yearsText.textContent = '請確認年投入 > 0 且績效為正';
+            }
+        } else {
+             elements.fi.yearsText.textContent = '請先設定您的年支出目標';
+        }
+
+        if (marketData && marketData.history) {
+            const currentYear = new Date().getFullYear();
+            performanceChart.data.labels = [...marketData.history.map(d => d.year), `${currentYear} (YTD)`];
+            performanceChart.data.datasets[0].data = [...marketData.history.map(d => d.assets_usd), currentAssets];
+            performanceChart.data.datasets[1].data = [...marketData.history.map(d => d.my_performance), myPerformance];
+            performanceChart.data.datasets[2].data = [...marketData.history.map(d => d.qqq), marketData.ytd.QQQ || 0];
+            performanceChart.data.datasets[3].data = [...marketData.history.map(d => d.voo), marketData.ytd.VOO || 0];
+            performanceChart.data.datasets[4].data = [...marketData.history.map(d => d.oo50), marketData.ytd['0050'] || 0];
+            performanceChart.update();
+        }
+        
+        saveData();
+    }
+    
+    // --- 初始載入與事件綁定 ---
+    async function initializeDashboard() {
+        loadData();
+        initializeChart();
+        
+        for (const key in elements.inputs) {
+            elements.inputs[key].addEventListener('input', updateUiFromInputs);
+        }
+        elements.fi.levelSelect.addEventListener('change', updateUiFromInputs);
+
+        try {
+            const response = await fetch(API_URL);
+            if (!response.ok) throw new Error(`API 請求失敗 (${response.status})`);
+            marketData = await response.json();
+            if (!marketData || !marketData.ytd || !marketData.history) {
+                throw new Error("API 回傳資料格式不正確");
+            }
+        } catch (error) {
+            console.error('無法從 API 獲取大盤資料:', error);
+            alert(`無法載入大盤歷史資料：${error.message}\n圖表中的大盤比較數據將無法顯示。`);
+        }
+        
+        updateUiFromInputs();
+
+        // ===== 所有工作完成後，隱藏讀取動畫 =====
+        elements.loader.classList.add('hidden');
+        // 為了優化，在動畫結束後將其從顯示列表中移除
+        setTimeout(() => {
+            elements.loader.style.display = 'none';
+        }, 500); // 這個時間要和 CSS transition 的時間匹配
+    }
+
+    initializeDashboard();
+});
+</script>
+
+</body>
+</html>
