@@ -4,7 +4,8 @@
 
 ![專案預覽圖]
 
-<img width="1097" height="921" alt="image" src="https://github.com/user-attachments/assets/3c6beabe-98db-442a-b072-9e5fd38574fb" />
+<img width="1092" height="916" alt="image" src="https://github.com/user-attachments/assets/c7d365e0-68fa-45c4-b020-dc57db970970" />
+
 
 
 
